@@ -1,4 +1,5 @@
 // GJ, 31.03.2023
+// GJ, 07.11.2023
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -25,7 +26,7 @@ QGP_NLO::QGP_NLO(
 
 #define sgn(x) (double) ((x>0)-(x<0))
 #define sz size()
-#define loop(i,a,b) for(int (i)=(a);(i)<(b);(i)++)
+#define loop(i,a,b) for(int i=a;i<b;i++)
 #define OOFP 0.0795774715459476678844418816863 //1/(4*pi)
 
 double Nc=3.;
@@ -82,6 +83,42 @@ void rho_OPE(double o, double k, double alpha, double mu, double &rT, double &rL
   rL += alpha*( 4.*OOFP*OOFP*K2 + coeff*(o*o+k*k)/(OOFP*OOFP*27.*K2*K2) );
 }
 
+
+/*--------------------------------------------------------------------*/
+// for running coupling
+
+void ThermalPhoton::RG_lookup(string fname, std::vector<double> &coupling_list, std::vector<double> &argument_list) {
+
+  cout << "\n reading in file: [" << fname << "]" << endl;
+
+  ifstream fin;
+  fin.open(fname);
+
+  double mol, uv, al;
+  int count=0;
+  fin.ignore(256,'\n');
+  fin.ignore(256,'\n');
+
+  fin >> mol >> uv >> al; count++;
+  
+  coupling_list.push_back(al);
+  argument_list.push_back(mol);
+  //fin.ignore(256,'\n');
+
+  while (true) {
+    fin >> mol >> uv >> al; count++;
+    if (fin.eof()) break;
+
+    coupling_list.push_back(al);
+    argument_list.push_back(mol);
+
+  }
+
+  cout << " ... done!" << endl;
+  cout << endl;
+}
+
+
 /*--------------------------------------------------------------------*/
 // grid structure (for look-up table)
 
@@ -98,9 +135,36 @@ int id(double _x, double *x, int nx) { // locate _x (assume x[nx] ordered)
 }
 
 
+ThermalPhoton::Line::Line(std::vector<double>  &_x, std::vector<double> &_F)
+    : nx(_x.sz), x(&_x[0]) 
+{
+  // prototype for interp. of F(x) ... 1-dimensional arg.
+  F = new double[nx];
+  auto val = &_F[0];
+  loop(i,0,nx) {
+    F[i] = (val++)[0];
+  }
+  x_min = *min_element(_x.begin(),_x.end()); x_max = *max_element(_x.begin(),_x.end());
+}
+
+
+double ThermalPhoton::Line::interp(double _x) 
+{
+  int i=id(_x,x,nx);
+  double res, a;
+  a = (_x-x[i])/(x[i+1]-x[i]);
+  // a,b,c,d (each value between 0 and 1)
+  res = (1.-a)*F[i] + (a)*F[i+1]
+      ; // linear interp
+  return res;
+}
+
+
 ThermalPhoton::Table::Table(std::vector<double>  &_x, std::vector<double>  &_y, std::vector<double>  &_z, std::vector<double>  &_w, std::vector<double>  &_F) 
     : nx(_x.size()), ny(_y.size()), nz(_z.size()), nw(_w.size()), x(&_x[0]), y(&_y[0]), z(&_z[0]), w(&_w[0])
 {
+  // prototype for interp. of F(x,y,z,w)
+  // arrays: x[nx], y[ny], z[nz], w[nw], matrix F[nx][ny][nz][nw]
   // Implementation of Table constructor...
 
   F = new double***[nx];
@@ -281,10 +345,20 @@ double B_(double x) { // kinematic factor
 }
 
 void ThermalPhoton::NLO_rate(struct ThermalPhoton::Table grid_T, struct ThermalPhoton::Table grid_L,
-            double o, double k, double alpha_s, double muB, double T, double m_l, double &rateTot, 
+            double o, double k, double alpha_s, int use_running_coupling, double muB, double T, double m_l, double &rateTot, 
             double &rateT, double &rateL) {
   // NB: quantities are defined in the local rest frame, i.e. u_\mu=(1,0,0,0)
   double M2 = o*o-k*k;
+
+  // running coupling
+  if (use_running_coupling==1)
+  {
+    double Q_opt, Lambda = .343; // Lambda_QCD in GeV
+                               //
+    Q_opt = sqrt( M2 + 4.*M_PI*M_PI*T*T + muB*muB/9. ); // choice of scale
+
+    alpha_s = coupling.interp(Q_opt/Lambda); // use linear interp.
+  }
 
   double prefactor = B_(m_l*m_l/M2)*(2./3.)*pow(hbarC,-4.)*pow(alphaEM,2.); 
   // units: GeV^-4.fm^-4

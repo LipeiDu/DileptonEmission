@@ -20,6 +20,8 @@ dilepton_dict = {
 
     'alpha_s': 0.3,                 # strong coupling, works for dilepton_emission_rate = 2
 
+    'use_running_coupling': 1,      # if off, then use alpha_s given above, otherwise alpha_s(Q) runs
+
 
     ##### hydro profile #####
 

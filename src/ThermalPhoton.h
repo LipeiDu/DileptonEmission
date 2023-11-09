@@ -36,6 +36,7 @@ class ThermalPhoton {
     int turn_on_muB_;
 
     double alpha_s;
+    int use_running_coupling;
 
     // photon emission rate
     std::unique_ptr<Table2D> Photonemission_eqrateTable_ptr;
@@ -58,6 +59,8 @@ class ThermalPhoton {
     std::vector<double>  M_list; // invariant mass (units of T)
     std::vector<double>  k_list; // 3-momentum (k/T), defined in the local rest frame
     std::vector<double>  rhoT_list, rhoL_list; // rho list
+
+    std::vector<double>  argument_list,coupling_list;
 
     // photon spectra parameters
     std::string emissionProcess_name;
@@ -133,6 +136,7 @@ class ThermalPhoton {
     void readEmissionrateFromFile(bool bRateTable);
     void initialize(std::string fname, std::vector<double> &a_list, std::vector<double> &B_list, std::vector<double> &M_list, 
         std::vector<double> &k_list, std::vector<double> &rhoT_list, std::vector<double> &rhoL_list);
+    void RG_lookup(std::string fname, std::vector<double> &coupling_list, std::vector<double> &argument_list);
 
     double get_dy() {return(dy);}
     double get_Dy() {return(Dy);}
@@ -185,6 +189,17 @@ class ThermalPhoton {
     void outputPhoton_Spvn_dTdtau(std::string path, double Tcut_high, double Tcut_low, double tau_cut_high, double tau_cut_low);
     void outputPhoton_Spectra_dTdtau(std::string path, double Tcut_high, double Tcut_low, double tau_cut_high, double tau_cut_low);
 
+    struct Line { // prototype for interp. of F(x) ... 1-dimensional arg.
+        int nx;
+        double *x, *F;
+        double x_min, x_max;
+        // arrays: x[nx], y[ny], z[nz], w[nw], matrix F[nx][ny][nz][nw]
+        Line() = default;
+        Line(std::vector<double> &_x, std::vector<double> &_F);
+
+        double interp(double _x);
+    };
+
     struct Table {
         int nx, ny, nz, nw;
         double *x, *y, *z, *w, ****F;
@@ -196,11 +211,12 @@ class ThermalPhoton {
         // ~Table();
     };
 
-    void NLO_rate(struct Table grid_T, struct Table grid_L, double o, double k, double alpha_s, 
+    void NLO_rate(struct Table grid_T, struct Table grid_L, double o, double k, double alpha_s, int use_running_coupling,
                 double muB, double T, double m_l, double &rateTot, double &rateT, double &rateL);
 
 private:
     Table grid_T;
     Table grid_L;
+    Line coupling;
 };
 #endif  // SRC_THERMALPHOTON_H_

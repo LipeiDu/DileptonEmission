@@ -36,7 +36,7 @@ using ARSENAL::logarithmic_mass_grid;
 using PhysConsts::me;
 
 ThermalPhoton::ThermalPhoton(std::shared_ptr<ParameterReader> paraRdr_in,
-                             std::string emissionProcess): grid_T(), grid_L(){
+                             std::string emissionProcess): grid_T(), grid_L(), coupling(){
 
     paraRdr = paraRdr_in;
     emissionProcess_name = emissionProcess;
@@ -59,6 +59,7 @@ ThermalPhoton::ThermalPhoton(std::shared_ptr<ParameterReader> paraRdr_in,
     include_visc_deltaf = paraRdr->getVal("include_shearvisc_deltaf");
 
     alpha_s = paraRdr->getVal("alpha_s");
+    use_running_coupling = paraRdr->getVal("use_running_coupling");
 
     // if muB is off, no need to include diffusion correction
     if(turn_on_muB_==0)
@@ -331,6 +332,20 @@ void ThermalPhoton::readEmissionrateFromFile(bool bRateTable) {
 	     << " , max k: "     << grid_T.w_max << endl;
 	cout << " (muB, M and k are given in units of T!)" << endl << endl;
 
+    cout << "----------------------------------------" << endl;
+    cout << "-- Read in running coupling table:" << endl;
+    cout << "----------------------------------------" << endl;
+
+    //read in running coupling table
+    ostringstream coupling_filename_stream;
+    coupling_filename_stream << rate_path_ << "table_Coupling_clipped.dat";
+
+    string cp_fname = coupling_filename_stream.str();
+
+    RG_lookup(cp_fname, coupling_list, argument_list);
+
+    coupling = Line(argument_list,coupling_list);
+    
 }
 
 
@@ -379,7 +394,7 @@ void ThermalPhoton::getPhotonemissionRate(double Eq, double M_ll, double pi_fact
         // interpolate NLO equilibrium rate
         double k = sqrt(Eq*Eq-M_ll*M_ll);
 
-  		NLO_rate(grid_T,grid_L,Eq,k,alpha_s,muB,T,me, eqrate_ptr, eqrateT_ptr, eqrateL_ptr);
+  		NLO_rate(grid_T,grid_L,Eq,k,alpha_s,use_running_coupling,muB,T,me, eqrate_ptr, eqrateT_ptr, eqrateL_ptr);
   		diffrate_ptr = 0.;
     } else {
     	// use LO analytical form
